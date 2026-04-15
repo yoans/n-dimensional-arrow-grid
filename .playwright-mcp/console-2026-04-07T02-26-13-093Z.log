@@ -1,0 +1,8 @@
+[     185ms] TypeError: Cannot set properties of undefined (setting 'innerHTML')
+    at UIControls.rebuildMoveDimOptions (http://localhost:3000/src/ui-controls.js:130:34)
+    at UIControls.rebuildSpanDimCheckboxes (http://localhost:3000/src/ui-controls.js:125:10)
+    at UIControls.setupEntityPalette (http://localhost:3000/src/ui-controls.js:54:10)
+    at new UIControls (http://localhost:3000/src/ui-controls.js:16:10)
+    at new App (http://localhost:3000/src/app.js:28:15)
+    at http://localhost:3000/src/app.js:152:3
+[     222ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/favicon.ico:0

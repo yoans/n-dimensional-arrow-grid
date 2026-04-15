@@ -1,0 +1,198 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - heading "Entity Palette" [level=2] [ref=e4]
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: Rank
+        - combobox [ref=e8]:
+          - option "Point" [selected]
+          - option "Line"
+          - option "Plane"
+          - option "Volume"
+      - generic [ref=e9]:
+        - generic [ref=e10]: Span Dims
+        - generic [ref=e11]:
+          - generic [ref=e12]:
+            - checkbox "Dim 0" [ref=e13]
+            - text: Dim 0
+          - generic [ref=e14]:
+            - checkbox "Dim 1" [ref=e15]
+            - text: Dim 1
+          - generic [ref=e16]:
+            - checkbox "Dim 2" [ref=e17]
+            - text: Dim 2
+      - generic [ref=e18]:
+        - generic [ref=e19]: Move Dim
+        - combobox [ref=e20]:
+          - option "Dim 0" [selected]
+          - option "Dim 1"
+          - option "Dim 2"
+      - generic [ref=e21]:
+        - generic [ref=e22]: Move Direction
+        - button "+1" [ref=e23] [cursor=pointer]
+      - generic [ref=e24]:
+        - generic [ref=e25]: Color
+        - textbox [ref=e26]: "#4dcc4d"
+  - main [ref=e27]:
+    - generic [ref=e30]:
+      - generic [ref=e31]:
+        - button "Step" [ref=e32] [cursor=pointer]
+        - button "Play" [active] [ref=e33] [cursor=pointer]
+        - button "Pause" [ref=e34] [cursor=pointer]
+        - button "Reset" [ref=e35] [cursor=pointer]
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - text: "Speed: 1.0"
+          - 'slider "Speed: 1.0" [ref=e38]': "1"
+        - generic [ref=e39]:
+          - text: "Size: 8"
+          - 'slider "Size: 8" [ref=e40]': "8"
+        - generic [ref=e41]:
+          - text: "Dims: 3"
+          - 'slider "Dims: 3" [ref=e42]': "3"
+      - generic [ref=e43]: "Step: 2 | Entities: 3"
+  - complementary [ref=e44]:
+    - heading "Collision Rules" [level=2] [ref=e45]
+    - table [ref=e47]:
+      - row "Point Line Plane Volume" [ref=e48]:
+        - columnheader [ref=e49]
+        - columnheader "Point" [ref=e50]
+        - columnheader "Line" [ref=e51]
+        - columnheader "Plane" [ref=e52]
+        - columnheader "Volume" [ref=e53]
+      - row "Point BOUNCE PASS THROUGH PASS THROUGH PASS THROUGH" [ref=e54]:
+        - rowheader "Point" [ref=e55]
+        - cell "BOUNCE" [ref=e56]:
+          - combobox [ref=e57]:
+            - option "PASS THROUGH"
+            - option "ANNIHILATE"
+            - option "BOUNCE" [selected]
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+        - cell "PASS THROUGH" [ref=e58]:
+          - combobox [ref=e59]:
+            - option "PASS THROUGH" [selected]
+            - option "ANNIHILATE"
+            - option "BOUNCE"
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+        - cell "PASS THROUGH" [ref=e60]:
+          - combobox [ref=e61]:
+            - option "PASS THROUGH" [selected]
+            - option "ANNIHILATE"
+            - option "BOUNCE"
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+        - cell "PASS THROUGH" [ref=e62]:
+          - combobox [ref=e63]:
+            - option "PASS THROUGH" [selected]
+            - option "ANNIHILATE"
+            - option "BOUNCE"
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+      - row "Line PASS THROUGH BOUNCE PASS THROUGH PASS THROUGH" [ref=e64]:
+        - rowheader "Line" [ref=e65]
+        - cell "PASS THROUGH" [ref=e66]:
+          - combobox [disabled] [ref=e67]:
+            - option "PASS THROUGH" [selected]
+            - option "ANNIHILATE"
+            - option "BOUNCE"
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+        - cell "BOUNCE" [ref=e68]:
+          - combobox [ref=e69]:
+            - option "PASS THROUGH"
+            - option "ANNIHILATE"
+            - option "BOUNCE" [selected]
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+        - cell "PASS THROUGH" [ref=e70]:
+          - combobox [ref=e71]:
+            - option "PASS THROUGH" [selected]
+            - option "ANNIHILATE"
+            - option "BOUNCE"
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+        - cell "PASS THROUGH" [ref=e72]:
+          - combobox [ref=e73]:
+            - option "PASS THROUGH" [selected]
+            - option "ANNIHILATE"
+            - option "BOUNCE"
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+      - row "Plane PASS THROUGH PASS THROUGH BOUNCE PASS THROUGH" [ref=e74]:
+        - rowheader "Plane" [ref=e75]
+        - cell "PASS THROUGH" [ref=e76]:
+          - combobox [disabled] [ref=e77]:
+            - option "PASS THROUGH" [selected]
+            - option "ANNIHILATE"
+            - option "BOUNCE"
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+        - cell "PASS THROUGH" [ref=e78]:
+          - combobox [disabled] [ref=e79]:
+            - option "PASS THROUGH" [selected]
+            - option "ANNIHILATE"
+            - option "BOUNCE"
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+        - cell "BOUNCE" [ref=e80]:
+          - combobox [ref=e81]:
+            - option "PASS THROUGH"
+            - option "ANNIHILATE"
+            - option "BOUNCE" [selected]
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+        - cell "PASS THROUGH" [ref=e82]:
+          - combobox [ref=e83]:
+            - option "PASS THROUGH" [selected]
+            - option "ANNIHILATE"
+            - option "BOUNCE"
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+      - row "Volume PASS THROUGH PASS THROUGH PASS THROUGH BOUNCE" [ref=e84]:
+        - rowheader "Volume" [ref=e85]
+        - cell "PASS THROUGH" [ref=e86]:
+          - combobox [disabled] [ref=e87]:
+            - option "PASS THROUGH" [selected]
+            - option "ANNIHILATE"
+            - option "BOUNCE"
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+        - cell "PASS THROUGH" [ref=e88]:
+          - combobox [disabled] [ref=e89]:
+            - option "PASS THROUGH" [selected]
+            - option "ANNIHILATE"
+            - option "BOUNCE"
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+        - cell "PASS THROUGH" [ref=e90]:
+          - combobox [disabled] [ref=e91]:
+            - option "PASS THROUGH" [selected]
+            - option "ANNIHILATE"
+            - option "BOUNCE"
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"
+        - cell "BOUNCE" [ref=e92]:
+          - combobox [ref=e93]:
+            - option "PASS THROUGH"
+            - option "ANNIHILATE"
+            - option "BOUNCE" [selected]
+            - option "ABSORB"
+            - option "REDIRECT"
+            - option "MERGE"

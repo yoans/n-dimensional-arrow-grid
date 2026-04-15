@@ -1,0 +1,43 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - heading "Entity Palette" [level=2] [ref=e4]
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: Rank
+        - combobox [ref=e8]:
+          - option "Point" [selected]
+          - option "Line"
+          - option "Plane"
+          - option "Volume"
+      - generic [ref=e9]:
+        - generic [ref=e10]: Span Dims
+        - generic [ref=e11]:
+          - generic [ref=e12]:
+            - checkbox "Dim 0" [ref=e13]
+            - text: Dim 0
+          - generic [ref=e14]:
+            - checkbox "Dim 1" [ref=e15]
+            - text: Dim 1
+          - generic [ref=e16]:
+            - checkbox "Dim 2" [ref=e17]
+            - text: Dim 2
+  - main [ref=e18]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - button "Step" [ref=e23] [cursor=pointer]
+        - button "Play" [ref=e24] [cursor=pointer]
+        - button "Pause" [ref=e25] [cursor=pointer]
+        - button "Reset" [ref=e26] [cursor=pointer]
+      - generic [ref=e27]:
+        - generic [ref=e28]:
+          - text: "Speed: 1.0"
+          - 'slider "Speed: 1.0" [ref=e29]': "1"
+        - generic [ref=e30]:
+          - text: "Size: 8"
+          - 'slider "Size: 8" [ref=e31]': "8"
+        - generic [ref=e32]:
+          - text: "Dims: 3"
+          - 'slider "Dims: 3" [ref=e33]': "3"
+      - generic [ref=e34]: "Step: 0 | Entities: 0"
+  - complementary [ref=e35]:
+    - heading "Collision Rules" [level=2] [ref=e36]

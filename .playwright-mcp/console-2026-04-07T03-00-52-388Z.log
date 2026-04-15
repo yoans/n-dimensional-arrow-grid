@@ -1,0 +1,4 @@
+[  868654ms] TypeError: this.setupDimMapping is not a function
+    at new UIControls (http://localhost:3000/src/ui-controls.js?t=1775531720801:18:10)
+    at new App (http://localhost:3000/src/app.js?t=1775531720801:35:15)
+    at http://localhost:3000/src/app.js?t=1775531720801:197:3

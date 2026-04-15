@@ -1,0 +1,4 @@
+[ 1165242ms] TypeError: this.setupPresets is not a function
+    at new UIControls (http://localhost:3000/src/ui-controls.js?t=1775533051034:22:10)
+    at new App (http://localhost:3000/src/app.js?t=1775533051034:36:15)
+    at http://localhost:3000/src/app.js?t=1775533051034:252:3
