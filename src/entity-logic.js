@@ -72,16 +72,21 @@ export function entityFingerprint(entity, N) {
  * 2. Move survivors
  * 3. Bounce at boundaries
  * Returns a new array — never mutates input.
+ * If `statsOut` is provided, fills it with meeting/event metrics for this step.
  */
-export function stepEntities(entities, worldConfig, collisionRules, applyCollision) {
+export function stepEntities(entities, worldConfig, collisionRules, applyCollision, statsOut = null) {
   const N = worldConfig.N;
   const size = worldConfig.size;
 
-  // Step 1: detect overlapping pairs
+  if (statsOut) {
+    statsOut.meetings = 0;
+    statsOut.events = [];
+    statsOut.rankBefore = rankHistogram(entities);
+  }
+
   const destroyed = new Set();
   const survivors = [];
 
-  // Brute-force pairwise overlap (fine for moderate entity counts)
   for (let i = 0; i < entities.length; i++) {
     for (let j = i + 1; j < entities.length; j++) {
       if (destroyed.has(i) || destroyed.has(j)) continue;
@@ -90,39 +95,69 @@ export function stepEntities(entities, worldConfig, collisionRules, applyCollisi
       if (checkOverlap(a, b, N)) {
         const ruleType = collisionRules.getRule(a.rank, b.rank);
         const result = applyCollision(a, b, ruleType, N);
-        // result is an array of surviving entities from this pair
-        // Mark originals as destroyed and push replacements
         destroyed.add(i);
         destroyed.add(j);
         for (const ent of result) {
           survivors.push(ent);
         }
+        if (statsOut) {
+          statsOut.meetings++;
+          statsOut.events.push({
+            rule: ruleType,
+            ranks: [a.rank, b.rank].sort((x, y) => x - y),
+            before: 2,
+            after: result.length,
+          });
+        }
       }
     }
   }
 
-  // Collect non-destroyed originals
   for (let i = 0; i < entities.length; i++) {
     if (!destroyed.has(i)) {
       survivors.push(cloneEntity(entities[i]));
     }
   }
 
-  // Step 2 & 3: snapshot prevPos, then move + bounce
   for (const ent of survivors) {
     ent.prevPos = [...ent.pos];
     const d = ent.moveDim;
     let next = ent.pos[d] + ent.moveDir;
-    // Reflect at walls so every step still travels one cell (no dead frame)
     if (next < 0 || next > size - 1) {
       ent.moveDir *= -1;
       next = ent.pos[d] + ent.moveDir;
     }
-    // Clamp in case size === 1
     ent.pos[d] = Math.max(0, Math.min(size - 1, next));
   }
 
+  if (statsOut) {
+    statsOut.rankAfter = rankHistogram(survivors);
+    statsOut.entityCount = survivors.length;
+  }
+
   return survivors;
+}
+
+/** Count entities per rank (length MAX_RANK+1). */
+export function rankHistogram(entities) {
+  const hist = [0, 0, 0, 0, 0];
+  for (const e of entities) {
+    if (e.rank >= 0 && e.rank < hist.length) hist[e.rank]++;
+  }
+  return hist;
+}
+
+/**
+ * Count current overlapping pairs without stepping (snapshot density signal).
+ */
+export function countOverlaps(entities, N) {
+  let n = 0;
+  for (let i = 0; i < entities.length; i++) {
+    for (let j = i + 1; j < entities.length; j++) {
+      if (checkOverlap(entities[i], entities[j], N)) n++;
+    }
+  }
+  return n;
 }
 
 /**

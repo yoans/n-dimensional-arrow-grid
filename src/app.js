@@ -1,9 +1,11 @@
-// App — orchestrator: world state, step loop, click-to-place
+// App — orchestrator: world state, step loop, click-to-place, experiments
 import { createEntity, stepEntities, resetIdCounter } from './entity-logic.js';
-import { CollisionRules, applyCollision } from './collision-rules.js';
+import { CollisionRules, applyCollision, createDefaultTable } from './collision-rules.js';
 import { Renderer } from './renderer.js';
 import { UIControls } from './ui-controls.js';
 import { DimMapper } from './dim-mapper.js';
+import { ExperimentUI } from './experiment-ui.js';
+import { materializeEntities } from './experiments.js';
 
 class App {
   constructor() {
@@ -26,12 +28,14 @@ class App {
     this._animating = false;
     this._toastTimer = null;
     this._hintHidden = false;
+    this._stepStats = {};
 
     const viewportEl = document.getElementById('viewport');
     this.renderer = new Renderer(viewportEl);
     this.renderer.updateGrid(this.worldConfig.size);
 
     this.ui = new UIControls(this);
+    this.experiments = new ExperimentUI(this);
 
     this._seedDefaults();
     this.renderScene();
@@ -39,6 +43,10 @@ class App {
     viewportEl.addEventListener('click', (e) => this._onViewportClick(e));
     viewportEl.addEventListener('pointerdown', () => this._hideViewportHint(), { once: false });
     viewportEl.addEventListener('wheel', () => this._hideViewportHint(), { passive: true, once: true });
+    window.addEventListener('resize', () => {
+      this.experiments?.drawWStrip?.();
+      this.experiments?.drawResearch?.();
+    });
 
     document.addEventListener('keydown', (e) => this._onKeyDown(e));
   }
@@ -73,14 +81,21 @@ class App {
     );
   }
 
-  step() {
+  _doStep() {
+    this._stepStats = {};
     this.entities = stepEntities(
       this.entities,
       this.worldConfig,
       this.collisionRules,
       applyCollision,
+      this._stepStats,
     );
     this.stepCount++;
+    this.experiments?.onStepStats(this._stepStats);
+  }
+
+  step() {
+    this._doStep();
     this._t = 0;
     this._startAnimation();
   }
@@ -102,16 +117,11 @@ class App {
     if (this.isPlaying) {
       while (this._t >= 1) {
         this._t -= 1;
-        this.entities = stepEntities(
-          this.entities,
-          this.worldConfig,
-          this.collisionRules,
-          applyCollision,
-        );
-        this.stepCount++;
+        this._doStep();
       }
       this.renderer.updateScene(this.entities, this.worldConfig, this._t, this.dimMapper);
       this.ui.updateStats(this.stepCount, this.entities.length);
+      this.experiments?.onRender();
       requestAnimationFrame(() => this._animationFrame());
     } else {
       this._t = Math.min(this._t, 1);
@@ -120,6 +130,7 @@ class App {
         : 1 - Math.pow(-2 * this._t + 2, 2) / 2;
       this.renderer.updateScene(this.entities, this.worldConfig, ease, this.dimMapper);
       this.ui.updateStats(this.stepCount, this.entities.length);
+      this.experiments?.onRender();
 
       if (this._t < 1) {
         requestAnimationFrame(() => this._animationFrame());
@@ -143,14 +154,27 @@ class App {
   }
 
   reset() {
+    const mode = this.experiments?.mode || 'playground';
+    if (mode !== 'playground') {
+      // Re-enter current experiment scenario
+      this.experiments._enterMode(mode);
+      return;
+    }
     this.pause();
     resetIdCounter();
     this.entities = [];
     this.stepCount = 0;
+    this.collisionRules.table = createDefaultTable();
+    this.worldConfig.N = 3;
+    this.worldConfig.size = 8;
+    this.worldConfig.slicePos = [];
+    this.dimMapper.rebuild(3);
     this.renderer.clearPool();
     this._seedDefaults();
     this.renderer.updateGrid(this.worldConfig.size);
     this.renderScene();
+    this.ui.syncFromApp();
+    this.ui.rebuildCollisionTable();
     this.toast('Reset to starter shapes');
   }
 
@@ -161,10 +185,13 @@ class App {
     this.stepCount = 0;
     this.renderer.clearPool();
     this.renderScene();
+    this.experiments?.resetMetrics();
+    this.experiments?.onRender();
     this.toast('Cleared — click the grid to place shapes');
   }
 
   setGridSize(size) {
+    if (this.experiments?.mode && this.experiments.mode !== 'playground') return;
     this.worldConfig.size = size;
     this.pause();
     resetIdCounter();
@@ -177,6 +204,7 @@ class App {
   }
 
   setDimensions(N) {
+    if (this.experiments?.mode && this.experiments.mode !== 'playground') return;
     this.worldConfig.N = N;
     this.worldConfig.slicePos = [];
     this.dimMapper.rebuild(N);
@@ -190,52 +218,58 @@ class App {
     this.renderScene();
   }
 
-  loadPreset(preset) {
+  /**
+   * Load a scenario descriptor (from experiments or presets).
+   */
+  loadScenario(scene, { toast: toastMsg } = {}) {
     this.pause();
     resetIdCounter();
 
-    this.worldConfig.N = preset.N;
-    this.worldConfig.size = preset.size;
-    this.worldConfig.slicePos = [];
-    this.speed = preset.speed;
+    this.worldConfig.N = scene.N;
+    this.worldConfig.size = scene.size;
+    this.worldConfig.slicePos = scene.slicePos ? [...scene.slicePos] : [];
+    this.speed = scene.speed ?? this.speed;
     this.stepCount = 0;
     this._t = 1;
 
-    if (preset.rules) {
-      const n = preset.rules.length;
+    this.collisionRules.table = createDefaultTable();
+    if (scene.rules) {
+      const n = scene.rules.length;
       for (let i = 0; i < n; i++) {
         for (let j = 0; j < n; j++) {
-          this.collisionRules.setRule(i, j, preset.rules[i][j]);
+          this.collisionRules.setRule(i, j, scene.rules[i][j]);
         }
       }
     }
 
-    this.dimMapper.rebuild(preset.N);
-    if (preset.dimMapping) {
-      for (let d = 0; d < preset.dimMapping.length; d++) {
-        this.dimMapper.set(d, preset.dimMapping[d]);
+    this.dimMapper.rebuild(scene.N);
+    if (scene.dimMapping) {
+      for (let d = 0; d < scene.dimMapping.length; d++) {
+        this.dimMapper.set(d, scene.dimMapping[d]);
       }
     }
 
-    this.entities = [];
+    this.entities = materializeEntities(scene);
     this.renderer.clearPool();
-    for (const e of preset.entities) {
-      const pos = [...e.pos];
-      while (pos.length < preset.N) pos.push(0);
-      this.entities.push(
-        createEntity(e.rank, [...e.spanDims], pos, e.moveDim, e.moveDir, [...e.color]),
-      );
-    }
-
-    this.renderer.updateGrid(preset.size);
+    this.renderer.updateGrid(scene.size);
     this.renderScene();
 
+    if (this.ui) {
+      this.ui.syncFromApp();
+      this.ui.rebuildCollisionTable();
+    }
+    if (toastMsg) this.toast(toastMsg);
+  }
+
+  loadPreset(preset) {
+    this.loadScenario(preset);
     if (this.ui) this.ui.syncFromApp();
   }
 
   renderScene() {
     this.renderer.updateScene(this.entities, this.worldConfig, this._t, this.dimMapper);
     this.ui.updateStats(this.stepCount, this.entities.length);
+    this.experiments?.onRender();
   }
 
   _onKeyDown(e) {
@@ -267,11 +301,27 @@ class App {
         if (overlay && !overlay.hidden) overlay.hidden = true;
         break;
       }
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5': {
+        const modes = ['playground', 'density', 'hyper', 'surgery', 'cascades', 'research'];
+        const idx = parseInt(e.key, 10) - 1;
+        if (modes[idx]) this.experiments.setMode(modes[idx]);
+        break;
+      }
     }
   }
 
   _onViewportClick(e) {
     this._hideViewportHint();
+    // Placement only in playground (experiments are authored scenarios)
+    if (this.experiments?.mode && this.experiments.mode !== 'playground') {
+      this.toast('Switch to Playground to paint entities');
+      return;
+    }
+
     const hit = this.renderer.raycastToGrid(e.clientX, e.clientY, this.worldConfig.size);
     if (!hit) return;
 

@@ -3,22 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Play with moving points, lines, planes, and volumes in an n-dimensional grid. Pick a preset and hit Play.">
+  <meta name="description" content="Explore n-dimensional shapes — playground plus experiments on density, hyper display, interactions, and cascades.">
   <title>N-Dimensional Grid</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-exp-mode="playground">
   <a href="#sim-controls" class="skip-link">Skip to simulation controls</a>
 
   <!-- Welcome / help overlay -->
   <div id="welcome" class="overlay" role="dialog" aria-modal="true" aria-labelledby="welcome-title" hidden>
     <div class="overlay-card">
       <h1 id="welcome-title">N-Dimensional Grid</h1>
-      <p class="overlay-lead">Watch shapes drift through space and collide — bounce, merge, absorb, or vanish.</p>
+      <p class="overlay-lead">Shapes fill their span dims and slide along free ones. Use the tabs to explore density, hyper display, interactions, and cascades — or stay in Playground.</p>
       <ol class="overlay-steps">
-        <li><strong>Pick a preset</strong> below the view (try Billiard Points or Solid Drift).</li>
-        <li><strong>Hit Play</strong> — or press <kbd>Space</kbd>.</li>
-        <li><strong>Drag</strong> to orbit; shapes fill their span dims and slide along free ones.</li>
+        <li><strong>Playground</strong> — full sandbox and presets.</li>
+        <li><strong>Experiment tabs</strong> — focused tracks with live metrics.</li>
+        <li><strong>Play</strong> (<kbd>Space</kbd>) — drag to orbit the view.</li>
       </ol>
       <div class="overlay-actions">
         <button type="button" id="welcome-demo" class="btn-primary">Try Billiard Points</button>
@@ -28,34 +28,46 @@
     </div>
   </div>
 
+  <nav id="experiment-tabs" class="experiment-tabs" aria-label="Experiment modes"></nav>
+
   <div class="layout">
-    <!-- Left panel — Entity Palette + Dim Mapping -->
-    <aside class="panel left-panel" aria-label="Entity palette and dimension mapping">
+    <!-- Left panel -->
+    <aside class="panel left-panel" aria-label="Controls">
       <div class="panel-brand">
         <span class="brand-mark">N·D</span>
         <button type="button" id="help-btn" class="help-btn" title="Help (?)" aria-label="Show help">?</button>
       </div>
-      <h2>Paint brush</h2>
-      <p class="panel-hint">Span dims are filled completely. Move along a free dim, then click the grid to place.</p>
-      <div id="entity-palette" role="group" aria-label="Entity creation tools"></div>
-      <hr class="panel-divider">
-      <h2>Dimension mapping</h2>
-      <p class="panel-hint">Map extra dimensions to color, size, opacity, or a slice slider.</p>
-      <div id="dim-mapping" role="group" aria-label="Dimension channel assignments"></div>
+
+      <div id="playground-left">
+        <h2>Paint brush</h2>
+        <p class="panel-hint">Span dims are filled completely. Move along a free dim, then click the grid to place.</p>
+        <div id="entity-palette" role="group" aria-label="Entity creation tools"></div>
+        <hr class="panel-divider">
+        <h2>Dimension mapping</h2>
+        <p class="panel-hint">Map extra dimensions to color, size, opacity, or a slice slider.</p>
+        <div id="dim-mapping" role="group" aria-label="Dimension channel assignments"></div>
+      </div>
+
+      <div id="experiment-left" hidden></div>
     </aside>
 
-    <!-- Center — 3D viewport + bottom bar -->
+    <!-- Center -->
     <main class="center">
+      <div id="experiment-banner" class="experiment-banner" hidden></div>
+
       <div id="viewport" role="img" aria-label="3D simulation viewport — drag to orbit, click to place" tabindex="0">
         <div id="viewport-hint" class="viewport-hint" aria-hidden="true">
           Drag to orbit · Scroll to zoom · Click to place
         </div>
       </div>
 
+      <canvas id="w-strip" class="w-strip" hidden aria-label="Hyperspace W dimension strip"></canvas>
+      <canvas id="research-viz" class="research-viz" hidden aria-label="Research hyperspace visualization"></canvas>
+      <div id="metrics-bar" class="metrics-bar" hidden></div>
+
       <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
       <div id="preset-blurb" class="preset-blurb" hidden></div>
 
-      <!-- Bottom bar — Simulation controls -->
       <div class="bottom-bar" id="sim-controls" role="toolbar" aria-label="Simulation controls">
         <div class="sim-buttons">
           <select id="preset-select" aria-label="Load a preset configuration">
@@ -95,19 +107,22 @@
       </div>
     </main>
 
-    <!-- Right panel — Collision Rule Table -->
-    <aside class="panel right-panel" aria-label="Collision rules configuration">
-      <h2>Collision rules</h2>
-      <p class="panel-hint">What happens when two ranks overlap? Edit the upper triangle — the rest mirrors.</p>
-      <div id="collision-panel"></div>
-      <ul class="rule-legend" aria-label="Collision type meanings">
-        <li><strong>Pass through</strong> — ignore each other</li>
-        <li><strong>Bounce</strong> — reverse directions</li>
-        <li><strong>Annihilate</strong> — both disappear</li>
-        <li><strong>Absorb</strong> — higher rank eats lower</li>
-        <li><strong>Redirect</strong> — swap move axes</li>
-        <li><strong>Merge</strong> — combine into a higher rank</li>
-      </ul>
+    <!-- Right panel -->
+    <aside class="panel right-panel" aria-label="Side panel">
+      <div id="playground-right">
+        <h2>Collision rules</h2>
+        <p class="panel-hint">What happens when two ranks overlap? Edit the upper triangle — the rest mirrors.</p>
+        <div id="collision-panel"></div>
+        <ul class="rule-legend" aria-label="Collision type meanings">
+          <li><strong>Pass through</strong> — ignore each other</li>
+          <li><strong>Bounce</strong> — reverse directions</li>
+          <li><strong>Annihilate</strong> — both disappear</li>
+          <li><strong>Absorb</strong> — higher rank eats lower</li>
+          <li><strong>Redirect</strong> — swap move axes</li>
+          <li><strong>Merge</strong> — combine into a higher rank</li>
+        </ul>
+      </div>
+      <div id="experiment-right" hidden></div>
     </aside>
   </div>
 
