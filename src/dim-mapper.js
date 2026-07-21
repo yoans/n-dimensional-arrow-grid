@@ -53,8 +53,22 @@ export class DimMapper {
   }
 
   /**
+   * Linearly interpolate an N-dimensional position (fractional coords allowed).
+   */
+  static lerpPos(prev, cur, t) {
+    const n = Math.max(prev?.length || 0, cur?.length || 0);
+    const out = new Array(n);
+    for (let i = 0; i < n; i++) {
+      const a = prev?.[i] || 0;
+      const b = cur?.[i] || 0;
+      out[i] = a + (b - a) * t;
+    }
+    return out;
+  }
+
+  /**
    * Get the 3D spatial position for an entity based on channel mapping.
-   * Returns [x, y, z] in world coordinates.
+   * Returns [x, y, z] in world coordinates (may be fractional during animation).
    */
   spatial3D(pos) {
     const xd = this.dimFor(Channel.X);
@@ -67,6 +81,11 @@ export class DimMapper {
     ];
   }
 
+  /** Normalize a dim coordinate to 0…1 given grid size. */
+  _norm(pos, dim, size) {
+    return (pos[dim] || 0) / Math.max(size - 1, 1);
+  }
+
   /**
    * Get hue channel value normalized to 0…1 (position / (size-1)).
    * Returns null if no dim is mapped to HUE.
@@ -74,7 +93,7 @@ export class DimMapper {
   hueValue(pos, size) {
     const d = this.dimFor(Channel.HUE);
     if (d < 0) return null;
-    return (pos[d] || 0) / Math.max(size - 1, 1);
+    return this._norm(pos, d, size);
   }
 
   /**
@@ -84,8 +103,7 @@ export class DimMapper {
   sizeValue(pos, size) {
     const d = this.dimFor(Channel.SIZE);
     if (d < 0) return null;
-    const t = (pos[d] || 0) / Math.max(size - 1, 1);
-    return 0.3 + t * 1.2;
+    return 0.3 + this._norm(pos, d, size) * 1.2;
   }
 
   /**
@@ -95,8 +113,7 @@ export class DimMapper {
   opacityValue(pos, size) {
     const d = this.dimFor(Channel.OPACITY);
     if (d < 0) return null;
-    const t = (pos[d] || 0) / Math.max(size - 1, 1);
-    return 0.15 + t * 0.85;
+    return 0.15 + this._norm(pos, d, size) * 0.85;
   }
 
   /**
@@ -106,7 +123,25 @@ export class DimMapper {
   tesseractValue(pos, size) {
     const d = this.dimFor(Channel.TESSERACT);
     if (d < 0) return null;
-    return (pos[d] || 0) / Math.max(size - 1, 1);
+    return this._norm(pos, d, size);
+  }
+
+  /**
+   * Soft slice visibility 0…1. Fully visible within 0.5 cells of the slice
+   * plane; fades out by 1.0 cell away. Supports fractional (lerped) positions.
+   */
+  sliceFactor(pos, slicePos) {
+    let factor = 1;
+    for (let d = 0; d < this.mapping.length; d++) {
+      if (this.mapping[d] !== Channel.SLICE) continue;
+      const sv = slicePos[d];
+      if (sv === undefined) continue;
+      const dist = Math.abs((pos[d] || 0) - sv);
+      if (dist > 0.5) {
+        factor *= Math.max(0, 1 - (dist - 0.5) * 2);
+      }
+    }
+    return factor;
   }
 
   /**
@@ -114,15 +149,7 @@ export class DimMapper {
    * Only dims mapped to SLICE are checked.
    */
   isVisible(pos, slicePos) {
-    for (let d = 0; d < this.mapping.length; d++) {
-      if (this.mapping[d] === Channel.SLICE) {
-        const sv = slicePos[d];
-        if (sv !== undefined && Math.round(pos[d] || 0) !== sv) {
-          return false;
-        }
-      }
-    }
-    return true;
+    return this.sliceFactor(pos, slicePos) > 0.001;
   }
 
   /**

@@ -1,6 +1,7 @@
 // Three.js Renderer — 3D scene with per-rank geometry and slice filtering
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { DimMapper } from './dim-mapper.js';
 
 export class Renderer {
   constructor(container) {
@@ -100,32 +101,34 @@ export class Renderer {
   }
 
   /**
-   * Full scene update — diffs entity list, lerps positions based on t (0→1).
-   * Uses dimMapper for channel-based positioning and visual encoding.
+   * Full scene update — diffs entity list, lerps ALL dimensions based on t (0→1).
+   * Spatial XYZ, hue, size, opacity, and tesseract all animate from prevPos→pos.
    */
   updateScene(entities, worldConfig, t = 1, dimMapper = null) {
     const size = worldConfig.size;
     const N = worldConfig.N;
     const slicePos = worldConfig.slicePos || [];
-
     const currentIds = new Set();
+    const ease = t; // already eased by caller when needed
 
-    // t is already eased by the caller when needed
-    const ease = t;
+    // Reused scratch to avoid per-frame Color allocations
+    if (!this._tmpColor) this._tmpColor = new THREE.Color();
 
     for (const ent of entities) {
       currentIds.add(ent.id);
 
-      // Visibility: check slice channels via dimMapper, or fallback
-      let visible = true;
+      // Interpolate the full N-D state so non-XYZ channels animate smoothly
+      const prev = ent.prevPos || ent.pos;
+      const interpPos = DimMapper.lerpPos(prev, ent.pos, ease);
+
+      let sliceAlpha = 1;
       if (dimMapper) {
-        visible = dimMapper.isVisible(ent.pos, slicePos);
+        sliceAlpha = dimMapper.sliceFactor(interpPos, slicePos);
       } else {
         for (let d = 3; d < N; d++) {
-          if (slicePos[d] !== undefined && Math.round(ent.pos[d]) !== slicePos[d]) {
-            visible = false;
-            break;
-          }
+          if (slicePos[d] === undefined) continue;
+          const dist = Math.abs((interpPos[d] || 0) - slicePos[d]);
+          if (dist > 0.5) sliceAlpha *= Math.max(0, 1 - (dist - 0.5) * 2);
         }
       }
 
@@ -136,29 +139,22 @@ export class Renderer {
         this.scene.add(obj);
       }
 
-      // Compute 3D position from dimMapper or raw pos
-      let curPos, prevPos;
+      // Spatial position from interpolated coords
+      let lx, ly, lz;
       if (dimMapper) {
-        curPos = dimMapper.spatial3D(ent.pos);
-        prevPos = dimMapper.spatial3D(ent.prevPos || ent.pos);
+        const p = dimMapper.spatial3D(interpPos);
+        lx = p[0]; ly = p[1]; lz = p[2];
       } else {
-        curPos = [ent.pos[0] || 0, ent.pos[1] || 0, ent.pos[2] || 0];
-        const pp = ent.prevPos || ent.pos;
-        prevPos = [pp[0] || 0, pp[1] || 0, pp[2] || 0];
+        lx = interpPos[0] || 0;
+        ly = interpPos[1] || 0;
+        lz = interpPos[2] || 0;
       }
 
-      // Lerp
-      const lx = prevPos[0] + (curPos[0] - prevPos[0]) * ease;
-      const ly = prevPos[1] + (curPos[1] - prevPos[1]) * ease;
-      const lz = prevPos[2] + (curPos[2] - prevPos[2]) * ease;
-
-      // Tesseract projection: offset position towards/away from grid center
+      // Tesseract: smoothly pull toward/away from grid center
       if (dimMapper) {
-        const tv = dimMapper.tesseractValue(ent.pos, size);
+        const tv = dimMapper.tesseractValue(interpPos, size);
         if (tv !== null) {
-          const max = size - 1;
-          const center = max / 2;
-          // Scale factor: inner cube at tv=0 is 0.4x, outer at tv=1 is 1.0x
+          const center = (size - 1) / 2;
           const scale = 0.4 + tv * 0.6;
           obj.position.set(
             center + (lx - center) * scale,
@@ -172,42 +168,40 @@ export class Renderer {
         obj.position.set(lx, ly, lz);
       }
 
-      obj.visible = visible;
+      obj.visible = sliceAlpha > 0.001;
 
-      // --- Visual channels ---
-      // Base color from entity
-      let r = ent.color[0], g = ent.color[1], b = ent.color[2];
-
-      // Hue override: position in hue dim → HSL hue rotation
+      // --- Visual channels (all driven by interpPos) ---
+      const color = this._tmpColor;
       if (dimMapper) {
-        const hv = dimMapper.hueValue(ent.pos, size);
+        const hv = dimMapper.hueValue(interpPos, size);
         if (hv !== null) {
-          const hueColor = new THREE.Color();
-          hueColor.setHSL(hv, 0.8, 0.55);
-          r = hueColor.r; g = hueColor.g; b = hueColor.b;
+          color.setHSL(hv, 0.8, 0.55);
+        } else {
+          color.setRGB(ent.color[0], ent.color[1], ent.color[2]);
         }
+      } else {
+        color.setRGB(ent.color[0], ent.color[1], ent.color[2]);
       }
-      const color = new THREE.Color(r, g, b);
 
-      // Size channel
       let scaleVal = 1;
       if (dimMapper) {
-        const sv = dimMapper.sizeValue(ent.pos, size);
+        const sv = dimMapper.sizeValue(interpPos, size);
         if (sv !== null) scaleVal = sv;
       }
       obj.scale.set(scaleVal, scaleVal, scaleVal);
 
-      // Opacity channel
+      // Opacity = channel opacity × soft slice fade
+      let channelOpacity = null;
       if (dimMapper) {
-        const ov = dimMapper.opacityValue(ent.pos, size);
-        if (ov !== null) {
-          this._setMaterialOpacity(obj, ov);
-        } else {
-          this._setMaterialOpacity(obj, null); // reset to default
-        }
+        channelOpacity = dimMapper.opacityValue(interpPos, size);
+      }
+      if (channelOpacity !== null || sliceAlpha < 1) {
+        const base = channelOpacity !== null ? channelOpacity : (obj.userData.defaultOpacity ?? 1);
+        this._setMaterialOpacity(obj, base * sliceAlpha);
+      } else {
+        this._setMaterialOpacity(obj, null);
       }
 
-      // Update color on material
       if (obj.material) {
         if (Array.isArray(obj.material)) {
           obj.material.forEach(m => m.color.copy(color));
@@ -215,7 +209,6 @@ export class Renderer {
           obj.material.color.copy(color);
         }
       }
-      // For groups (plane/volume), update child materials
       if (obj.children) {
         obj.traverse(child => {
           if (child.material && child.material.color) {
@@ -249,12 +242,19 @@ export class Renderer {
 
   _createMesh(entity, size) {
     const color = new THREE.Color(entity.color[0], entity.color[1], entity.color[2]);
+    const stampDefault = (mat, opacity) => {
+      mat.userData = mat.userData || {};
+      mat.userData.defaultOpacity = opacity;
+    };
 
     switch (entity.rank) {
       case 0: { // Point — sphere
         const geo = new THREE.SphereGeometry(0.15, 16, 16);
         const mat = new THREE.MeshPhongMaterial({ color });
-        return new THREE.Mesh(geo, mat);
+        stampDefault(mat, 1);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.userData.defaultOpacity = 1;
+        return mesh;
       }
       case 1: { // Line — spans full grid (0 to size-1) along span axis
         const dim = entity.spanDims[0];
@@ -271,7 +271,10 @@ export class Renderer {
           new THREE.Vector3(e[0], e[1], e[2]),
         ]);
         const mat = new THREE.LineBasicMaterial({ color, linewidth: 2 });
-        return new THREE.Line(geo, mat);
+        stampDefault(mat, 1);
+        const line = new THREE.Line(geo, mat);
+        line.userData.defaultOpacity = 1;
+        return line;
       }
       case 2: { // Plane — semi-transparent, spans 0→size-1 in both span dims
         const max = size - 1;
@@ -282,6 +285,7 @@ export class Renderer {
           opacity: 0.25,
           side: THREE.DoubleSide,
         });
+        stampDefault(mat, 0.25);
         const mesh = new THREE.Mesh(geo, mat);
         const spans = entity.spanDims;
         const mid = max / 2;
@@ -299,6 +303,7 @@ export class Renderer {
         group.add(mesh);
         // Expose material for color updates
         group.material = mat;
+        group.userData.defaultOpacity = 0.25;
         return group;
       }
       case 3: { // Volume — wireframe + translucent fill spanning full grid
@@ -311,11 +316,13 @@ export class Renderer {
           opacity: 0.08,
           side: THREE.DoubleSide,
         });
+        stampDefault(mat, 0.08);
         const mesh = new THREE.Mesh(geo, mat);
         mesh.position.set(mid - entity.pos[0], mid - entity.pos[1], mid - (entity.pos[2] || 0));
 
         const wireGeo = new THREE.EdgesGeometry(geo);
         const wireMat = new THREE.LineBasicMaterial({ color });
+        stampDefault(wireMat, 1);
         const wire = new THREE.LineSegments(wireGeo, wireMat);
         mesh.add(wire);
 
@@ -323,12 +330,16 @@ export class Renderer {
         const group = new THREE.Group();
         group.add(mesh);
         group.material = mat;
+        group.userData.defaultOpacity = 0.08;
         return group;
       }
       default: {
         const geo = new THREE.SphereGeometry(0.15, 16, 16);
         const mat = new THREE.MeshPhongMaterial({ color });
-        return new THREE.Mesh(geo, mat);
+        stampDefault(mat, 1);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.userData.defaultOpacity = 1;
+        return mesh;
       }
     }
   }

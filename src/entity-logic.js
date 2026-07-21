@@ -107,15 +107,15 @@ export function stepEntities(entities, worldConfig, collisionRules, applyCollisi
   // Step 2 & 3: snapshot prevPos, then move + bounce
   for (const ent of survivors) {
     ent.prevPos = [...ent.pos];
-    ent.pos[ent.moveDim] += ent.moveDir;
-    // Bounce at boundaries
-    if (ent.pos[ent.moveDim] <= 0) {
-      ent.pos[ent.moveDim] = 0;
-      ent.moveDir = 1;
-    } else if (ent.pos[ent.moveDim] >= size - 1) {
-      ent.pos[ent.moveDim] = size - 1;
-      ent.moveDir = -1;
+    const d = ent.moveDim;
+    let next = ent.pos[d] + ent.moveDir;
+    // Reflect at walls so every step still travels one cell (no dead frame)
+    if (next < 0 || next > size - 1) {
+      ent.moveDir *= -1;
+      next = ent.pos[d] + ent.moveDir;
     }
+    // Clamp in case size === 1
+    ent.pos[d] = Math.max(0, Math.min(size - 1, next));
   }
 
   return survivors;
