@@ -1,61 +1,46 @@
-# N-Dimensional Arrow Grid
+# N-Dimensional Grid
 
-An interactive visualization of multi-dimensional cellular automata featuring arrows and blocks with unique movement and interaction rules.
+An interactive playground for shapes that move and collide in 2–8 dimensions.
+
+Points, lines, planes, and volumes drift along chosen axes. When they meet, you decide what happens: bounce, merge, absorb, annihilate, redirect, or pass through.
+
+**Try it live:** [yoans.github.io/n-dimensional-arrow-grid](https://yoans.github.io/n-dimensional-arrow-grid/)
+
+## Quick start
+
+```bash
+npm install
+npm run dev
+```
+
+Opens on [http://localhost:3000](http://localhost:3000).
+
+## How to play
+
+1. Pick a **preset** in the bottom bar (Billiard Points is a great first try).
+2. Hit **Play** (or press `Space`).
+3. **Drag** to orbit the camera; **click** to paint more shapes from the left panel.
+
+Shortcuts: `Space` play/pause · `S` step · `R` reset · `?` help
 
 ## Features
 
-- **N-Dimensional Support**: Adjustable from 2D up to 10D (uncapped slider)
-- **Dynamic Grid Size**: Variable grid sizes from 2x2 to 20x20
-- **Interactive Drawing**: Click to place arrows, blocks, or clear cells
-- **Smooth Animations**: Configurable animation speed for state transitions
-- **Real-time Visualization**: Multiple rendering modes for different dimensions
+- **Ranks** — point / line / plane / volume with configurable span and move axes
+- **Collision table** — editable rules for every rank pair
+- **Dimension mapping** — map extra dims to hue, size, opacity, tesseract projection, or slice sliders
+- **10 presets** — billiards, predator chains, hyperspace, tesseract dance, and more
+- **Three.js** viewport with smooth step interpolation
 
-## Rules
+## Scripts
 
-### Arrow Movement
-- Arrows move in their indicated direction along a specific dimension
-- Movement happens one cell per step
-- Arrows are reflected when hitting blocks or boundaries
+| Command | What it does |
+|---------|----------------|
+| `npm run dev` | Local Vite server |
+| `npm run build` | Production build → `dist/` |
+| `npm run preview` | Preview the production build |
 
-### Interactions
-- **Arrow + Empty**: Arrow moves into empty space
-- **Arrow + Block**: Arrow reflects (reverses direction)
-- **Arrow + Opposite Arrow**: Arrows annihilate (both disappear)
-- **Arrow + Same Arrow**: Collision results in annihilation
+GitHub Pages deploys automatically from `main` via Actions.
 
-### Blocks
-- Blocks remain stationary
-- Act as walls that reflect arrows
+## License
 
-## Controls
-
-- **Dimensions Slider**: Adjust the number of dimensions (2-10)
-- **Grid Size Slider**: Change grid dimensions (2-20)
-- **Animation Speed**: Control transition speed (0.1-3.0s)
-- **Step**: Advance one step manually
-- **Play/Pause**: Auto-advance the simulation
-- **Reset**: Return to initial state
-- **Shape Selector**: Choose which element to draw (↑ ↓ ← → ■ ○)
-
-## Usage
-
-1. Open `index.html` in a modern web browser
-2. Adjust dimensions and grid size as desired
-3. Click on the grid to place arrows or blocks
-4. Use Step or Play to watch the simulation evolve
-5. Experiment with different initial configurations!
-
-## Technical Details
-
-- Pure JavaScript implementation (no dependencies)
-- HTML5 Canvas rendering
-- Supports arbitrary dimensions with projection algorithms
-- Smooth interpolation between states
-
-## Visualization Modes
-
-- **2D**: Standard top-down grid view
-- **3D**: Layered slices with depth perception
-- **4D+**: Projected view using dimensional reduction
-
-Enjoy exploring multi-dimensional cellular automata!
+MIT

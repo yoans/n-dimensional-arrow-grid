@@ -4,7 +4,31 @@ import { Channel, DimMapper } from './dim-mapper.js';
 import { PRESETS } from './presets.js';
 
 const RANK_LABELS = ['Point', 'Line', 'Plane', 'Volume'];
+const RANK_HINTS = [
+  'A single cell — no span dims needed',
+  'Needs 1 span dim (the axis it stretches along)',
+  'Needs 2 span dims (the plane it covers)',
+  'Needs 3 span dims (the box it fills)',
+];
 const COLLISION_TYPES = Object.values(CollisionType);
+const COLLISION_LABELS = {
+  PASS_THROUGH: 'Pass through',
+  ANNIHILATE: 'Annihilate',
+  BOUNCE: 'Bounce',
+  ABSORB: 'Absorb',
+  REDIRECT: 'Redirect',
+  MERGE: 'Merge',
+};
+const CHANNEL_HINTS = {
+  X: 'Horizontal position',
+  Y: 'Vertical position',
+  Z: 'Depth position',
+  HUE: 'Encode as color hue',
+  SIZE: 'Encode as scale',
+  OPACITY: 'Encode as transparency',
+  TESSERACT: '4D cube projection',
+  SLICE: 'Filter with a slider',
+};
 
 export class UIControls {
   constructor(app) {
@@ -14,6 +38,7 @@ export class UIControls {
     this.paintMoveDim = 1;
     this.paintMoveDir = 1;
     this.paintColor = [0.3, 0.8, 0.3];
+    this._blurbTimer = null;
 
     this.setupEntityPalette();
     this.setupDimMapping();
@@ -21,19 +46,74 @@ export class UIControls {
     this.setupSimControls();
     this.setupPresets();
     this.setupSliceSliders();
+    this.setupWelcome();
+    this.updatePlayButton();
+  }
+
+  // --- Welcome / help ---
+  setupWelcome() {
+    const overlay = document.getElementById('welcome');
+    const helpBtn = document.getElementById('help-btn');
+    const dismiss = document.getElementById('welcome-dismiss');
+    const demo = document.getElementById('welcome-demo');
+
+    const show = () => {
+      overlay.hidden = false;
+      dismiss?.focus();
+    };
+    const hide = () => {
+      overlay.hidden = true;
+      try { localStorage.setItem('ndgrid-welcomed', '1'); } catch (_) { /* ignore */ }
+    };
+
+    helpBtn?.addEventListener('click', show);
+    dismiss?.addEventListener('click', hide);
+    demo?.addEventListener('click', () => {
+      hide();
+      this.app.loadPreset(PRESETS[0]);
+      this.showPresetBlurb(PRESETS[0]);
+      this.app.play();
+      this.app.toast('Playing Billiard Points — drag to look around');
+    });
+
+    // Show on first visit
+    let seen = false;
+    try { seen = localStorage.getItem('ndgrid-welcomed') === '1'; } catch (_) { /* ignore */ }
+    if (!seen) show();
+    else overlay.hidden = true;
+  }
+
+  showPresetBlurb(preset) {
+    const el = document.getElementById('preset-blurb');
+    if (!el || !preset) return;
+    el.innerHTML = `<strong>${preset.name}</strong>${preset.description}`;
+    el.hidden = false;
+    clearTimeout(this._blurbTimer);
+    this._blurbTimer = setTimeout(() => { el.hidden = true; }, 8000);
+  }
+
+  updatePlayButton() {
+    const btn = document.getElementById('play-btn');
+    if (!btn) return;
+    const playing = this.app.isPlaying;
+    btn.classList.toggle('is-playing', playing);
+    btn.innerHTML = playing
+      ? 'Pause <span class="key-hint">Space</span>'
+      : 'Play <span class="key-hint">Space</span>';
+    btn.setAttribute('aria-label', playing ? 'Pause playback' : 'Start continuous playback');
+    btn.title = playing ? 'Pause (Space)' : 'Play (Space)';
   }
 
   // --- Left panel: Entity Palette ---
   setupEntityPalette() {
     const panel = document.getElementById('entity-palette');
 
-    // Rank selector
     const rankGroup = document.createElement('div');
     rankGroup.className = 'control-group';
-    rankGroup.innerHTML = `<label>Rank</label>`;
+    rankGroup.innerHTML = `<label>Shape</label><span class="control-hint" id="rank-hint">${RANK_HINTS[0]}</span>`;
     const rankSelect = document.createElement('select');
     rankSelect.id = 'rank-select';
-    rankSelect.setAttribute('aria-label', 'Entity rank');
+    rankSelect.setAttribute('aria-label', 'Entity shape / rank');
     RANK_LABELS.forEach((label, i) => {
       const opt = document.createElement('option');
       opt.value = i;
@@ -41,47 +121,43 @@ export class UIControls {
       rankSelect.appendChild(opt);
     });
     rankSelect.addEventListener('change', () => {
-      this.paintRank = parseInt(rankSelect.value);
-      // Clear span dims that exceed the new rank limit
-      while (this.paintSpanDims.length > this.paintRank) {
-        this.paintSpanDims.pop();
-      }
+      this.paintRank = parseInt(rankSelect.value, 10);
+      document.getElementById('rank-hint').textContent = RANK_HINTS[this.paintRank];
+      this._autoPickSpanDims();
       this.rebuildSpanDimCheckboxes();
     });
     rankGroup.appendChild(rankSelect);
     panel.appendChild(rankGroup);
 
-    // SpanDims checkboxes
     const spanGroup = document.createElement('div');
     spanGroup.className = 'control-group';
-    spanGroup.innerHTML = `<label>Span Dims</label>`;
+    spanGroup.innerHTML = `<label>Span dims</label><span class="control-hint">Axes the shape extends along</span>`;
     this.spanDimContainer = document.createElement('div');
     this.spanDimContainer.id = 'span-dims';
     this.spanDimContainer.className = 'checkbox-group';
     spanGroup.appendChild(this.spanDimContainer);
     panel.appendChild(spanGroup);
 
-    // MoveDim dropdown (must exist before rebuildSpanDimCheckboxes calls rebuildMoveDimOptions)
     const moveGroup = document.createElement('div');
     moveGroup.className = 'control-group';
-    moveGroup.innerHTML = `<label>Move Dim</label>`;
+    moveGroup.innerHTML = `<label>Move along</label><span class="control-hint">Must be outside the span</span>`;
     this.moveDimSelect = document.createElement('select');
     this.moveDimSelect.id = 'move-dim';
     this.moveDimSelect.setAttribute('aria-label', 'Movement dimension');
     this.moveDimSelect.addEventListener('change', () => {
-      this.paintMoveDim = parseInt(this.moveDimSelect.value);
+      this.paintMoveDim = parseInt(this.moveDimSelect.value, 10);
     });
     moveGroup.appendChild(this.moveDimSelect);
     panel.appendChild(moveGroup);
 
-    // Now safe to build span checkboxes (which triggers rebuildMoveDimOptions)
+    this._autoPickSpanDims();
     this.rebuildSpanDimCheckboxes();
 
-    // MoveDir toggle
     const dirGroup = document.createElement('div');
     dirGroup.className = 'control-group';
-    dirGroup.innerHTML = `<label>Move Direction</label>`;
+    dirGroup.innerHTML = `<label>Direction</label>`;
     const dirBtn = document.createElement('button');
+    dirBtn.type = 'button';
     dirBtn.id = 'dir-toggle';
     dirBtn.textContent = '+1';
     dirBtn.setAttribute('aria-label', 'Move direction: positive');
@@ -93,7 +169,6 @@ export class UIControls {
     dirGroup.appendChild(dirBtn);
     panel.appendChild(dirGroup);
 
-    // Color picker
     const colorGroup = document.createElement('div');
     colorGroup.className = 'control-group';
     colorGroup.innerHTML = `<label>Color</label>`;
@@ -113,11 +188,25 @@ export class UIControls {
     panel.appendChild(colorGroup);
   }
 
+  /** Pick the first `rank` dims as span so placement always works. */
+  _autoPickSpanDims() {
+    const N = this.app.worldConfig.N;
+    this.paintSpanDims = [];
+    for (let d = 0; d < N && this.paintSpanDims.length < this.paintRank; d++) {
+      this.paintSpanDims.push(d);
+    }
+  }
+
   rebuildSpanDimCheckboxes() {
     const N = this.app.worldConfig.N;
     this.spanDimContainer.innerHTML = '';
-    this.paintSpanDims = [];
     this._spanCheckboxes = [];
+
+    // Keep auto-picked dims that still fit; refill if empty for this rank
+    this.paintSpanDims = this.paintSpanDims.filter(d => d < N).slice(0, this.paintRank);
+    if (this.paintSpanDims.length < this.paintRank) {
+      this._autoPickSpanDims();
+    }
 
     for (let d = 0; d < N; d++) {
       const label = document.createElement('label');
@@ -125,6 +214,7 @@ export class UIControls {
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.value = d;
+      cb.checked = this.paintSpanDims.includes(d);
       cb.setAttribute('aria-label', `Span dimension ${d}`);
       cb.addEventListener('change', () => {
         if (cb.checked) {
@@ -144,15 +234,10 @@ export class UIControls {
     this.rebuildMoveDimOptions();
   }
 
-  /**
-   * Disable unchecked span-dim checkboxes when the rank limit is reached.
-   * Point=0 spans, Line=1, Plane=2, Volume=3.
-   */
   _enforceSpanLimit() {
     const maxSpan = this.paintRank;
     const atLimit = this.paintSpanDims.length >= maxSpan;
     for (const cb of this._spanCheckboxes) {
-      const dim = parseInt(cb.value);
       if (cb.checked) {
         cb.disabled = false;
         cb.parentElement.classList.remove('disabled-dim');
@@ -165,17 +250,24 @@ export class UIControls {
 
   rebuildMoveDimOptions() {
     const N = this.app.worldConfig.N;
+    const prev = this.paintMoveDim;
     this.moveDimSelect.innerHTML = '';
+    const available = [];
     for (let d = 0; d < N; d++) {
       if (!this.paintSpanDims.includes(d)) {
+        available.push(d);
         const opt = document.createElement('option');
         opt.value = d;
         opt.textContent = `Dim ${d}`;
         this.moveDimSelect.appendChild(opt);
       }
     }
-    if (this.moveDimSelect.value !== undefined) {
-      this.paintMoveDim = parseInt(this.moveDimSelect.value);
+    if (available.includes(prev)) {
+      this.moveDimSelect.value = String(prev);
+      this.paintMoveDim = prev;
+    } else if (available.length) {
+      this.moveDimSelect.value = String(available[0]);
+      this.paintMoveDim = available[0];
     }
   }
 
@@ -206,13 +298,16 @@ export class UIControls {
         const opt = document.createElement('option');
         opt.value = ch;
         opt.textContent = ch;
+        opt.title = CHANNEL_HINTS[ch] || '';
         sel.appendChild(opt);
       });
       sel.value = mapper.get(d);
+      sel.title = CHANNEL_HINTS[sel.value] || '';
       const dim = d;
       sel.addEventListener('change', () => {
         mapper.set(dim, sel.value);
-        this.app.renderer.clearPool(); // rebuild meshes for new mapping
+        sel.title = CHANNEL_HINTS[sel.value] || '';
+        this.app.renderer.clearPool();
         this.app.renderScene();
         this.rebuildSliceSliders();
       });
@@ -237,7 +332,6 @@ export class UIControls {
     caption.textContent = 'Collision rules: choose what happens when entities of different ranks collide';
     table.appendChild(caption);
 
-    // Header row
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
     headerRow.innerHTML = '<th scope="col"></th>' + RANK_LABELS.map(l => `<th scope="col">${l}</th>`).join('');
@@ -250,57 +344,49 @@ export class UIControls {
       row.innerHTML = `<th scope="row">${RANK_LABELS[i]}</th>`;
       for (let j = 0; j < 4; j++) {
         const td = document.createElement('td');
-        if (j >= i) {
-          const sel = document.createElement('select');
-          sel.className = 'rule-select';
-          sel.setAttribute('aria-label', `${RANK_LABELS[i]} vs ${RANK_LABELS[j]} collision rule`);
-          COLLISION_TYPES.forEach(t => {
-            const opt = document.createElement('option');
-            opt.value = t;
-            opt.textContent = t.replace('_', ' ');
-            sel.appendChild(opt);
-          });
-          sel.value = this.app.collisionRules.getRule(i, j);
+        const sel = document.createElement('select');
+        sel.className = 'rule-select';
+        const editable = j >= i;
+        sel.disabled = !editable;
+        sel.setAttribute(
+          'aria-label',
+          editable
+            ? `${RANK_LABELS[i]} vs ${RANK_LABELS[j]} collision rule`
+            : `${RANK_LABELS[i]} vs ${RANK_LABELS[j]} (mirrors ${RANK_LABELS[j]} vs ${RANK_LABELS[i]})`,
+        );
+        COLLISION_TYPES.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t;
+          opt.textContent = COLLISION_LABELS[t] || t.replace(/_/g, ' ');
+          sel.appendChild(opt);
+        });
+        sel.value = this.app.collisionRules.getRule(i, j);
+        sel.dataset.rule = `${i}-${j}`;
+        if (editable) {
           const ri = i, rj = j;
           sel.addEventListener('change', () => {
             this.app.collisionRules.setRule(ri, rj, sel.value);
-            // Mirror in symmetric cell
             const mirror = document.querySelector(`[data-rule="${rj}-${ri}"]`);
             if (mirror) mirror.value = sel.value;
           });
-          sel.dataset.rule = `${i}-${j}`;
-          td.appendChild(sel);
-        } else {
-          // Symmetric cell — mirror (read-only)
-          const sel = document.createElement('select');
-          sel.className = 'rule-select';
-          sel.disabled = true;
-          sel.setAttribute('aria-label', `${RANK_LABELS[i]} vs ${RANK_LABELS[j]} (mirrors ${RANK_LABELS[j]} vs ${RANK_LABELS[i]})`);
-          COLLISION_TYPES.forEach(t => {
-            const opt = document.createElement('option');
-            opt.value = t;
-            opt.textContent = t.replace('_', ' ');
-            sel.appendChild(opt);
-          });
-          sel.value = this.app.collisionRules.getRule(i, j);
-          sel.dataset.rule = `${i}-${j}`;
-          td.appendChild(sel);
         }
+        td.appendChild(sel);
         row.appendChild(td);
       }
       tbody.appendChild(row);
     }
     table.appendChild(tbody);
-
     panel.appendChild(table);
   }
 
   // --- Bottom bar: Simulation controls ---
   setupSimControls() {
     document.getElementById('step-btn').addEventListener('click', () => this.app.step());
-    document.getElementById('play-btn').addEventListener('click', () => this.app.play());
-    document.getElementById('pause-btn').addEventListener('click', () => this.app.pause());
+    document.getElementById('play-btn').addEventListener('click', () => {
+      this.app.isPlaying ? this.app.pause() : this.app.play();
+    });
     document.getElementById('reset-btn').addEventListener('click', () => this.app.reset());
+    document.getElementById('clear-btn')?.addEventListener('click', () => this.app.clearEntities());
 
     const speedSlider = document.getElementById('speed-slider');
     const speedVal = document.getElementById('speed-value');
@@ -314,7 +400,7 @@ export class UIControls {
     const sizeSlider = document.getElementById('size-slider');
     const sizeVal = document.getElementById('size-value');
     sizeSlider.addEventListener('input', () => {
-      const val = parseInt(sizeSlider.value);
+      const val = parseInt(sizeSlider.value, 10);
       this.app.setGridSize(val);
       sizeVal.textContent = val;
       sizeSlider.setAttribute('aria-valuenow', val);
@@ -323,7 +409,7 @@ export class UIControls {
     const dimSlider = document.getElementById('dim-slider');
     const dimVal = document.getElementById('dim-value');
     dimSlider.addEventListener('input', () => {
-      const val = parseInt(dimSlider.value);
+      const val = parseInt(dimSlider.value, 10);
       this.app.setDimensions(val);
       dimVal.textContent = val;
       dimSlider.setAttribute('aria-valuenow', val);
@@ -333,7 +419,6 @@ export class UIControls {
     });
   }
 
-  // --- Slice sliders for SLICE-mapped dims ---
   setupSliceSliders() {
     const container = document.getElementById('slice-sliders');
     container.innerHTML = '';
@@ -341,7 +426,6 @@ export class UIControls {
     const size = this.app.worldConfig.size;
     const mapper = this.app.dimMapper;
 
-    // Collect dims assigned to SLICE channel
     const sliceDims = [];
     for (let d = 0; d < N; d++) {
       if (mapper.get(d) === Channel.SLICE) sliceDims.push(d);
@@ -351,24 +435,23 @@ export class UIControls {
       const group = document.createElement('div');
       group.className = 'control-group';
       const valSpan = document.createElement('span');
-      valSpan.textContent = '0';
+      valSpan.textContent = String(this.app.worldConfig.slicePos[d] ?? 0);
       group.innerHTML = `<label>Slice Dim ${d}: </label>`;
       group.querySelector('label').appendChild(valSpan);
       const slider = document.createElement('input');
       slider.type = 'range';
       slider.min = 0;
       slider.max = size - 1;
-      slider.value = 0;
+      slider.value = this.app.worldConfig.slicePos[d] ?? 0;
       const dim = d;
       slider.addEventListener('input', () => {
-        const v = parseInt(slider.value);
+        const v = parseInt(slider.value, 10);
         this.app.worldConfig.slicePos[dim] = v;
         valSpan.textContent = v;
         this.app.renderScene();
       });
       group.appendChild(slider);
       container.appendChild(group);
-      // Initialize slicePos
       if (this.app.worldConfig.slicePos[d] === undefined) {
         this.app.worldConfig.slicePos[d] = 0;
       }
@@ -380,7 +463,6 @@ export class UIControls {
     document.getElementById('entity-count').textContent = entityCount;
   }
 
-  // --- Presets ---
   setupPresets() {
     const sel = document.getElementById('preset-select');
     PRESETS.forEach((p, i) => {
@@ -391,19 +473,18 @@ export class UIControls {
       sel.appendChild(opt);
     });
     sel.addEventListener('change', () => {
-      const idx = parseInt(sel.value);
+      const idx = parseInt(sel.value, 10);
       if (!isNaN(idx) && PRESETS[idx]) {
-        this.app.loadPreset(PRESETS[idx]);
-        sel.value = ''; // reset to "— Preset —" after loading
+        const preset = PRESETS[idx];
+        this.app.loadPreset(preset);
+        this.showPresetBlurb(preset);
+        this.app.toast(`Loaded “${preset.name}” — hit Play`);
+        sel.value = '';
       }
     });
   }
 
-  /**
-   * Sync all UI controls to match current app state (after preset load, etc.)
-   */
   syncFromApp() {
-    // Speed
     const speedSlider = document.getElementById('speed-slider');
     const speedVal = document.getElementById('speed-value');
     if (speedSlider) {
@@ -411,7 +492,6 @@ export class UIControls {
       speedVal.textContent = this.app.speed.toFixed(1);
     }
 
-    // Size
     const sizeSlider = document.getElementById('size-slider');
     const sizeVal = document.getElementById('size-value');
     if (sizeSlider) {
@@ -419,7 +499,6 @@ export class UIControls {
       sizeVal.textContent = this.app.worldConfig.size;
     }
 
-    // Dims
     const dimSlider = document.getElementById('dim-slider');
     const dimVal = document.getElementById('dim-value');
     if (dimSlider) {
@@ -427,16 +506,13 @@ export class UIControls {
       dimVal.textContent = this.app.worldConfig.N;
     }
 
-    // Rebuild dependent UI
     this.rebuildSpanDimCheckboxes();
     this.rebuildDimMapping();
     this.setupSliceSliders();
     this.rebuildCollisionTable();
+    this.updatePlayButton();
   }
 
-  /**
-   * Rebuild the collision table to reflect current rules.
-   */
   rebuildCollisionTable() {
     const selects = document.querySelectorAll('[data-rule]');
     selects.forEach(sel => {

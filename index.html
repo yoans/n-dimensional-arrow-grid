@@ -3,44 +3,84 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>N-Dimensional Arrow Grid</title>
+  <meta name="description" content="Play with moving points, lines, planes, and volumes in an n-dimensional grid. Pick a preset and hit Play.">
+  <title>N-Dimensional Grid</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <a href="#sim-controls" class="skip-link">Skip to simulation controls</a>
 
+  <!-- Welcome / help overlay -->
+  <div id="welcome" class="overlay" role="dialog" aria-modal="true" aria-labelledby="welcome-title" hidden>
+    <div class="overlay-card">
+      <h1 id="welcome-title">N-Dimensional Grid</h1>
+      <p class="overlay-lead">Watch shapes drift through space and collide — bounce, merge, absorb, or vanish.</p>
+      <ol class="overlay-steps">
+        <li><strong>Pick a preset</strong> below the view (try Billiard Points).</li>
+        <li><strong>Hit Play</strong> — or press <kbd>Space</kbd>.</li>
+        <li><strong>Drag</strong> to orbit the camera; <strong>click</strong> to place more shapes.</li>
+      </ol>
+      <div class="overlay-actions">
+        <button type="button" id="welcome-demo" class="btn-primary">Try Billiard Points</button>
+        <button type="button" id="welcome-dismiss" class="btn-ghost">I'll explore</button>
+      </div>
+      <p class="overlay-foot">Shortcuts: <kbd>Space</kbd> play/pause · <kbd>S</kbd> step · <kbd>R</kbd> reset · <kbd>?</kbd> help</p>
+    </div>
+  </div>
+
   <div class="layout">
     <!-- Left panel — Entity Palette + Dim Mapping -->
     <aside class="panel left-panel" aria-label="Entity palette and dimension mapping">
-      <h2>Entity Palette</h2>
+      <div class="panel-brand">
+        <span class="brand-mark">N·D</span>
+        <button type="button" id="help-btn" class="help-btn" title="Help (?)" aria-label="Show help">?</button>
+      </div>
+      <h2>Paint brush</h2>
+      <p class="panel-hint">Choose a shape, then click the grid to place it.</p>
       <div id="entity-palette" role="group" aria-label="Entity creation tools"></div>
       <hr class="panel-divider">
-      <h2>Dimension Mapping</h2>
+      <h2>Dimension mapping</h2>
+      <p class="panel-hint">Map extra dimensions to color, size, opacity, or a slice slider.</p>
       <div id="dim-mapping" role="group" aria-label="Dimension channel assignments"></div>
     </aside>
 
     <!-- Center — 3D viewport + bottom bar -->
     <main class="center">
-      <div id="viewport" role="img" aria-label="3D simulation viewport — click to place entities" tabindex="0"></div>
+      <div id="viewport" role="img" aria-label="3D simulation viewport — drag to orbit, click to place" tabindex="0">
+        <div id="viewport-hint" class="viewport-hint" aria-hidden="true">
+          Drag to orbit · Scroll to zoom · Click to place
+        </div>
+      </div>
+
+      <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+      <div id="preset-blurb" class="preset-blurb" hidden></div>
 
       <!-- Bottom bar — Simulation controls -->
       <div class="bottom-bar" id="sim-controls" role="toolbar" aria-label="Simulation controls">
         <div class="sim-buttons">
-          <select id="preset-select" aria-label="Load a preset configuration"><option value="">— Preset —</option></select>
-          <button id="step-btn" aria-label="Advance one step" title="Step (S)">Step</button>
-          <button id="play-btn" aria-label="Start continuous playback" title="Play (Space)">Play</button>
-          <button id="pause-btn" aria-label="Pause playback" title="Pause (Space)">Pause</button>
-          <button id="reset-btn" aria-label="Reset simulation" title="Reset (R)">Reset</button>
+          <select id="preset-select" aria-label="Load a preset configuration">
+            <option value="">Try a preset…</option>
+          </select>
+          <button type="button" id="step-btn" aria-label="Advance one step" title="Step (S)">
+            Step <span class="key-hint">S</span>
+          </button>
+          <button type="button" id="play-btn" aria-label="Play or pause" title="Play / Pause (Space)">
+            Play <span class="key-hint">Space</span>
+          </button>
+          <button type="button" id="reset-btn" aria-label="Reset simulation" title="Reset (R)">
+            Reset <span class="key-hint">R</span>
+          </button>
+          <button type="button" id="clear-btn" aria-label="Clear all entities" title="Clear entities">Clear</button>
         </div>
 
         <div class="sim-sliders" role="group" aria-label="Simulation parameters">
-          <label>Speed: <span id="speed-value" aria-hidden="true">1.0</span>
+          <label>Speed <span id="speed-value" aria-hidden="true">1.0</span>
             <input type="range" id="speed-slider" min="0.1" max="5" value="1" step="0.1" aria-label="Simulation speed" aria-valuemin="0.1" aria-valuemax="5" aria-valuenow="1">
           </label>
-          <label>Size: <span id="size-value" aria-hidden="true">8</span>
+          <label>Grid <span id="size-value" aria-hidden="true">8</span>
             <input type="range" id="size-slider" min="3" max="30" value="8" step="1" aria-label="Grid size" aria-valuemin="3" aria-valuemax="30" aria-valuenow="8">
           </label>
-          <label>Dims: <span id="dim-value" aria-hidden="true">3</span>
+          <label>Dims <span id="dim-value" aria-hidden="true">3</span>
             <input type="range" id="dim-slider" min="2" max="8" value="3" step="1" aria-label="Number of dimensions" aria-valuemin="2" aria-valuemax="8" aria-valuenow="3">
           </label>
         </div>
@@ -48,16 +88,26 @@
         <div id="slice-sliders" class="sim-sliders" role="group" aria-label="Slice position controls"></div>
 
         <div class="stats" aria-live="polite" aria-atomic="true">
-          Step: <span id="step-count">0</span> &nbsp;|&nbsp;
-          Entities: <span id="entity-count">0</span>
+          Step <span id="step-count">0</span>
+          <span class="stats-sep">·</span>
+          <span id="entity-count">0</span> entities
         </div>
       </div>
     </main>
 
     <!-- Right panel — Collision Rule Table -->
     <aside class="panel right-panel" aria-label="Collision rules configuration">
-      <h2>Collision Rules</h2>
+      <h2>Collision rules</h2>
+      <p class="panel-hint">What happens when two ranks overlap? Edit the upper triangle — the rest mirrors.</p>
       <div id="collision-panel"></div>
+      <ul class="rule-legend" aria-label="Collision type meanings">
+        <li><strong>Pass through</strong> — ignore each other</li>
+        <li><strong>Bounce</strong> — reverse directions</li>
+        <li><strong>Annihilate</strong> — both disappear</li>
+        <li><strong>Absorb</strong> — higher rank eats lower</li>
+        <li><strong>Redirect</strong> — swap move axes</li>
+        <li><strong>Merge</strong> — combine into a higher rank</li>
+      </ul>
     </aside>
   </div>
 

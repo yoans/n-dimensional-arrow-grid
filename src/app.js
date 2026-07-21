@@ -4,7 +4,6 @@ import { CollisionRules, applyCollision } from './collision-rules.js';
 import { Renderer } from './renderer.js';
 import { UIControls } from './ui-controls.js';
 import { DimMapper } from './dim-mapper.js';
-import { PRESETS } from './presets.js';
 
 class App {
   constructor() {
@@ -19,31 +18,48 @@ class App {
     this.dimMapper = new DimMapper();
     this.dimMapper.rebuild(this.worldConfig.N);
     this.stepCount = 0;
-    this.speed = 1.0; // steps per second
+    this.speed = 1.0;
     this.isPlaying = false;
 
-    // Animation state
-    this._t = 1;              // interpolation progress 0→1; starts at 1 (idle)
+    this._t = 1;
     this._lastFrameTime = 0;
     this._animating = false;
+    this._toastTimer = null;
+    this._hintHidden = false;
 
-    // Renderer
     const viewportEl = document.getElementById('viewport');
     this.renderer = new Renderer(viewportEl);
     this.renderer.updateGrid(this.worldConfig.size);
 
-    // UI
     this.ui = new UIControls(this);
 
-    // Seed default entities: one point, one line, one plane
     this._seedDefaults();
     this.renderScene();
 
-    // Click-to-place
     viewportEl.addEventListener('click', (e) => this._onViewportClick(e));
+    viewportEl.addEventListener('pointerdown', () => this._hideViewportHint(), { once: false });
+    viewportEl.addEventListener('wheel', () => this._hideViewportHint(), { passive: true, once: true });
 
-    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => this._onKeyDown(e));
+  }
+
+  _hideViewportHint() {
+    if (this._hintHidden) return;
+    this._hintHidden = true;
+    const hint = document.getElementById('viewport-hint');
+    if (!hint) return;
+    hint.classList.add('fade-out');
+    setTimeout(() => { hint.hidden = true; }, 400);
+  }
+
+  toast(message, { error = false } = {}) {
+    const el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.toggle('is-error', error);
+    el.hidden = false;
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => { el.hidden = true; }, 2800);
   }
 
   _seedDefaults() {
@@ -51,9 +67,9 @@ class App {
     const mid = Math.floor(s / 2);
 
     this.entities.push(
-      createEntity(0, [], [mid, 0, mid], 1, 1, [0.3, 0.8, 0.4]),         // point
-      createEntity(1, [0], [0, mid, mid], 1, 1, [0.2, 0.5, 0.9]),        // line spanning X
-      createEntity(2, [0, 2], [0, 0, 0], 1, 1, [0.9, 0.4, 0.3]),        // plane spanning XZ
+      createEntity(0, [], [mid, 0, mid], 1, 1, [0.3, 0.8, 0.4]),
+      createEntity(1, [0], [0, mid, mid], 1, 1, [0.2, 0.5, 0.9]),
+      createEntity(2, [0, 2], [0, 0, 0], 1, 1, [0.9, 0.4, 0.3]),
     );
   }
 
@@ -69,9 +85,6 @@ class App {
     this._startAnimation();
   }
 
-  /**
-   * Start the RAF interpolation loop if not already running.
-   */
   _startAnimation() {
     if (this._animating) return;
     this._animating = true;
@@ -84,11 +97,9 @@ class App {
     const dt = (now - this._lastFrameTime) / 1000;
     this._lastFrameTime = now;
 
-    // Advance interpolation progress
     this._t += dt * this.speed;
 
     if (this.isPlaying) {
-      // Continuous play: chain steps seamlessly, carry overflow time
       while (this._t >= 1) {
         this._t -= 1;
         this.entities = stepEntities(
@@ -99,12 +110,10 @@ class App {
         );
         this.stepCount++;
       }
-      // Linear interpolation for smooth constant-velocity motion
       this.renderer.updateScene(this.entities, this.worldConfig, this._t, this.dimMapper);
       this.ui.updateStats(this.stepCount, this.entities.length);
       requestAnimationFrame(() => this._animationFrame());
     } else {
-      // Single step: clamp to 1 and apply easing for nice decel/accel
       this._t = Math.min(this._t, 1);
       const ease = this._t < 0.5
         ? 2 * this._t * this._t
@@ -123,11 +132,14 @@ class App {
   play() {
     if (this.isPlaying) return;
     this.isPlaying = true;
+    this.ui.updatePlayButton();
     this._startAnimation();
   }
 
   pause() {
+    if (!this.isPlaying) return;
     this.isPlaying = false;
+    this.ui.updatePlayButton();
   }
 
   reset() {
@@ -139,6 +151,17 @@ class App {
     this._seedDefaults();
     this.renderer.updateGrid(this.worldConfig.size);
     this.renderScene();
+    this.toast('Reset to starter shapes');
+  }
+
+  clearEntities() {
+    this.pause();
+    resetIdCounter();
+    this.entities = [];
+    this.stepCount = 0;
+    this.renderer.clearPool();
+    this.renderScene();
+    this.toast('Cleared — click the grid to place shapes');
   }
 
   setGridSize(size) {
@@ -171,7 +194,6 @@ class App {
     this.pause();
     resetIdCounter();
 
-    // Apply world config
     this.worldConfig.N = preset.N;
     this.worldConfig.size = preset.size;
     this.worldConfig.slicePos = [];
@@ -179,7 +201,6 @@ class App {
     this.stepCount = 0;
     this._t = 1;
 
-    // Collision rules
     if (preset.rules) {
       for (let i = 0; i < 4; i++) {
         for (let j = 0; j < 4; j++) {
@@ -188,7 +209,6 @@ class App {
       }
     }
 
-    // Dim mapping
     this.dimMapper.rebuild(preset.N);
     if (preset.dimMapping) {
       for (let d = 0; d < preset.dimMapping.length; d++) {
@@ -196,12 +216,10 @@ class App {
       }
     }
 
-    // Entities
     this.entities = [];
     this.renderer.clearPool();
     for (const e of preset.entities) {
       const pos = [...e.pos];
-      // Pad pos to N dimensions
       while (pos.length < preset.N) pos.push(0);
       this.entities.push(
         createEntity(e.rank, [...e.spanDims], pos, e.moveDim, e.moveDir, [...e.color]),
@@ -211,7 +229,6 @@ class App {
     this.renderer.updateGrid(preset.size);
     this.renderScene();
 
-    // Notify UI to refresh all controls
     if (this.ui) this.ui.syncFromApp();
   }
 
@@ -221,7 +238,6 @@ class App {
   }
 
   _onKeyDown(e) {
-    // Ignore shortcuts when typing in an input/select
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 
@@ -238,10 +254,23 @@ class App {
       case 'R':
         this.reset();
         break;
+      case '?':
+      case '/': {
+        if (e.key === '/' && !e.shiftKey) break;
+        const overlay = document.getElementById('welcome');
+        if (overlay) overlay.hidden = !overlay.hidden;
+        break;
+      }
+      case 'Escape': {
+        const overlay = document.getElementById('welcome');
+        if (overlay && !overlay.hidden) overlay.hidden = true;
+        break;
+      }
     }
   }
 
   _onViewportClick(e) {
+    this._hideViewportHint();
     const hit = this.renderer.raycastToGrid(e.clientX, e.clientY, this.worldConfig.size);
     if (!hit) return;
 
@@ -251,7 +280,6 @@ class App {
     if (N > 1) pos[1] = hit.y;
     if (N > 2) pos[2] = hit.z;
 
-    // Fill higher-dim positions from current slice
     for (let d = 3; d < N; d++) {
       pos[d] = this.worldConfig.slicePos[d] || 0;
     }
@@ -262,12 +290,17 @@ class App {
     const moveDir = this.ui.paintMoveDir;
     const color = [...this.ui.paintColor];
 
+    if (spanDims.length !== rank) {
+      this.toast(`Pick ${rank} span dim${rank === 1 ? '' : 's'} for a ${['point', 'line', 'plane', 'volume'][rank]}`, { error: true });
+      return;
+    }
+
     try {
       const ent = createEntity(rank, spanDims, pos, moveDim, moveDir, color);
       this.entities.push(ent);
       this.renderScene();
     } catch (err) {
-      console.warn('Could not place entity:', err.message);
+      this.toast(err.message || 'Could not place entity', { error: true });
     }
   }
 }
