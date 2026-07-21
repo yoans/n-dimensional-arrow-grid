@@ -272,13 +272,14 @@ function pairwiseAffinity(points) {
  * Draw the selected research visualization into a canvas.
  */
 export function drawResearchViz(canvas, { mode, entities, N, size, t = 1 }) {
-  if (!canvas) return;
+  if (!canvas || canvas.hidden) return;
   const parent = canvas.parentElement;
   const cssW = parent?.clientWidth || 640;
-  const cssH = Math.max(220, Math.min(360, Math.floor(cssW * 0.42)));
+  const cssH = Math.min(280, Math.max(180, Math.floor(window.innerHeight * 0.28)));
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.floor(cssW * dpr);
   canvas.height = Math.floor(cssH * dpr);
+  canvas.style.width = '100%';
   canvas.style.height = `${cssH}px`;
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

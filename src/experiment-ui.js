@@ -115,6 +115,13 @@ export class ExperimentUI {
     this.resetMetrics();
     this._renderModeChrome();
 
+    // Aux canvases toggle layout — force WebGL viewport to reflow
+    requestAnimationFrame(() => {
+      this.app.renderer?.resize?.();
+      if (this.mode === 'research') this.drawResearch();
+      if (this.mode === 'hyper') this.drawWStrip();
+    });
+
     if (!silent && prev !== mode) {
       this._enterMode(mode);
     } else if (silent && mode !== 'playground') {
@@ -406,13 +413,14 @@ export class ExperimentUI {
   drawWStrip() {
     const canvas = this.wStrip;
     const ctx = this.wStripCtx;
-    if (!canvas || !ctx || this.mode !== 'hyper') return;
+    if (!canvas || !ctx || this.mode !== 'hyper' || canvas.hidden) return;
 
     const w = canvas.clientWidth || canvas.parentElement?.clientWidth || 400;
     const h = 88;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = Math.floor(w * dpr);
     canvas.height = Math.floor(h * dpr);
+    canvas.style.width = '100%';
     canvas.style.height = `${h}px`;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
