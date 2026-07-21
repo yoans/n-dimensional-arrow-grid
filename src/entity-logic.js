@@ -1,13 +1,17 @@
 // Entity Logic — pure functions, no mutation of inputs
-// Entity ranks: 0=point, 1=line, 2=plane, 3=volume
+// Entity ranks: 0=point, 1=line, 2=plane, 3=volume, 4=hyper (4-solid)
+
+export const MAX_RANK = 4;
+export const RANK_LABELS = ['Point', 'Line', 'Plane', 'Volume', 'Hyper'];
 
 let _nextId = 1;
 
 /**
  * Factory + validation for entity creation.
+ * Span dims are completely filled; moveDim must be a free (non-span) dim.
  */
 export function createEntity(rank, spanDims, pos, moveDim, moveDir, color) {
-  if (rank < 0 || rank > 3) throw new Error(`Invalid rank: ${rank}`);
+  if (rank < 0 || rank > MAX_RANK) throw new Error(`Invalid rank: ${rank}`);
   if (spanDims.length !== rank) throw new Error(`spanDims length ${spanDims.length} !== rank ${rank}`);
   if (spanDims.includes(moveDim)) throw new Error(`moveDim ${moveDim} cannot be in spanDims`);
   if (moveDir !== 1 && moveDir !== -1) throw new Error(`moveDir must be 1 or -1`);

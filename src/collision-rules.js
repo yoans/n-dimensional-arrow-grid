@@ -1,5 +1,5 @@
 // Collision Rules — configurable interaction table
-import { cloneEntity, createEntity } from './entity-logic.js';
+import { cloneEntity, createEntity, MAX_RANK } from './entity-logic.js';
 
 export const CollisionType = {
   PASS_THROUGH: 'PASS_THROUGH',
@@ -10,15 +10,17 @@ export const CollisionType = {
   MERGE: 'MERGE',
 };
 
+const RANK_COUNT = MAX_RANK + 1; // 0..4 → 5
+
 /**
- * 4×4 symmetric default collision table.
+ * Symmetric default collision table.
  * Same-rank → BOUNCE, all other → PASS_THROUGH.
  */
 export function createDefaultTable() {
   const table = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < RANK_COUNT; i++) {
     table[i] = [];
-    for (let j = 0; j < 4; j++) {
+    for (let j = 0; j < RANK_COUNT; j++) {
       table[i][j] = i === j ? CollisionType.BOUNCE : CollisionType.PASS_THROUGH;
     }
   }
@@ -64,10 +66,8 @@ export function applyCollision(a, b, type, N) {
     }
 
     case CollisionType.ABSORB: {
-      // Higher rank survives
       if (a.rank > b.rank) return [cloneEntity(a)];
       if (b.rank > a.rank) return [cloneEntity(b)];
-      // Equal rank: both survive (fallback)
       return [cloneEntity(a), cloneEntity(b)];
     }
 
@@ -80,11 +80,9 @@ export function applyCollision(a, b, type, N) {
     }
 
     case CollisionType.MERGE: {
-      // Combine spanDims if combined rank ≤ 3
       const combinedSpan = [...new Set([...a.spanDims, ...b.spanDims])];
-      if (combinedSpan.length <= 3) {
+      if (combinedSpan.length <= MAX_RANK) {
         const newRank = combinedSpan.length;
-        // Find a valid moveDim not in combinedSpan
         let newMoveDim = -1;
         for (let d = 0; d < N; d++) {
           if (!combinedSpan.includes(d)) {
@@ -93,12 +91,11 @@ export function applyCollision(a, b, type, N) {
           }
         }
         if (newMoveDim === -1) {
-          // No free dim — both survive unchanged
+          // No free dim left to move in — can't form a higher solid
           return [cloneEntity(a), cloneEntity(b)];
         }
         return [createEntity(newRank, combinedSpan, [...a.pos], newMoveDim, a.moveDir, a.color)];
       }
-      // Can't merge beyond rank 3
       return [cloneEntity(a), cloneEntity(b)];
     }
 

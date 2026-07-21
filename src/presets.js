@@ -340,4 +340,56 @@ export const PRESETS = [
     ],
   },
 
+  // ─── 11. Solid Drift ─────────────────────────────────────────
+  {
+    name: 'Solid Drift',
+    description: 'Full-grid volumes slide through the 4th dimension (tesseract). The box stays grid-sized; only W moves.',
+    N: 4,
+    size: 8,
+    speed: 1.0,
+    dimMapping: ['X', 'Y', 'Z', 'TESSERACT'],
+    rules: rule(
+      CT.BOUNCE,
+      CT.PASS_THROUGH, CT.PASS_THROUGH, CT.PASS_THROUGH,
+      CT.BOUNCE,
+      CT.PASS_THROUGH, CT.PASS_THROUGH,
+      CT.BOUNCE,
+      CT.PASS_THROUGH,
+      CT.BOUNCE,
+    ),
+    entities: [
+      { rank: 3, spanDims: [0, 1, 2], pos: [0, 0, 0, 0], moveDim: 3, moveDir: 1, color: [0.3, 0.55, 1.0] },
+      { rank: 3, spanDims: [0, 1, 2], pos: [0, 0, 0, 7], moveDim: 3, moveDir: -1, color: [1.0, 0.35, 0.45] },
+      { rank: 0, spanDims: [], pos: [2, 2, 2, 3], moveDim: 0, moveDir: 1, color: [1.0, 0.9, 0.2] },
+      { rank: 0, spanDims: [], pos: [5, 5, 5, 4], moveDim: 1, moveDir: -1, color: [0.2, 1.0, 0.6] },
+      { rank: 0, spanDims: [], pos: [1, 6, 3, 1], moveDim: 3, moveDir: 1, color: [0.9, 0.5, 1.0] },
+    ],
+  },
+
+  // ─── 12. Hyper Pulse ─────────────────────────────────────────
+  {
+    name: 'Hyper Pulse',
+    description: 'A 4-solid fills XYZ+W and breathes along a 5th dim (size). Lines carve free axes through it.',
+    N: 5,
+    size: 6,
+    speed: 1.2,
+    dimMapping: ['X', 'Y', 'Z', 'TESSERACT', 'SIZE'],
+    rules: rule(
+      CT.BOUNCE,
+      CT.REDIRECT, CT.PASS_THROUGH, CT.ABSORB,
+      CT.BOUNCE,
+      CT.PASS_THROUGH, CT.ABSORB,
+      CT.BOUNCE,
+      CT.ABSORB,
+      CT.BOUNCE,
+    ),
+    entities: [
+      { rank: 4, spanDims: [0, 1, 2, 3], pos: [0, 0, 0, 0, 0], moveDim: 4, moveDir: 1, color: [0.4, 0.7, 1.0] },
+      { rank: 1, spanDims: [0], pos: [0, 2, 3, 2, 5], moveDim: 4, moveDir: -1, color: [1.0, 0.5, 0.2] },
+      { rank: 1, spanDims: [1], pos: [3, 0, 1, 4, 1], moveDim: 4, moveDir: 1, color: [0.3, 1.0, 0.5] },
+      { rank: 0, spanDims: [], pos: [4, 4, 4, 3, 2], moveDim: 2, moveDir: -1, color: [1.0, 1.0, 0.3] },
+      { rank: 0, spanDims: [], pos: [1, 1, 5, 1, 4], moveDim: 3, moveDir: 1, color: [1.0, 0.3, 0.8] },
+    ],
+  },
+
 ];

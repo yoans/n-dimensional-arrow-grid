@@ -202,8 +202,9 @@ class App {
     this._t = 1;
 
     if (preset.rules) {
-      for (let i = 0; i < 4; i++) {
-        for (let j = 0; j < 4; j++) {
+      const n = preset.rules.length;
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
           this.collisionRules.setRule(i, j, preset.rules[i][j]);
         }
       }
@@ -291,7 +292,11 @@ class App {
     const color = [...this.ui.paintColor];
 
     if (spanDims.length !== rank) {
-      this.toast(`Pick ${rank} span dim${rank === 1 ? '' : 's'} for a ${['point', 'line', 'plane', 'volume'][rank]}`, { error: true });
+      this.toast(`Pick ${rank} span dim${rank === 1 ? '' : 's'} for a ${['point', 'line', 'plane', 'volume', 'hyper'][rank]}`, { error: true });
+      return;
+    }
+    if (moveDim < 0 || spanDims.includes(moveDim) || Number.isNaN(moveDim)) {
+      this.toast('Need a free dim to move along — raise Dims or change span', { error: true });
       return;
     }
 

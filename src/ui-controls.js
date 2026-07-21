@@ -1,14 +1,15 @@
 // UI Controls — wiring for entity palette, collision rule table, and simulation controls
 import { CollisionType } from './collision-rules.js';
 import { Channel, DimMapper } from './dim-mapper.js';
+import { RANK_LABELS } from './entity-logic.js';
 import { PRESETS } from './presets.js';
 
-const RANK_LABELS = ['Point', 'Line', 'Plane', 'Volume'];
 const RANK_HINTS = [
-  'A single cell — no span dims needed',
-  'Needs 1 span dim (the axis it stretches along)',
-  'Needs 2 span dims (the plane it covers)',
-  'Needs 3 span dims (the box it fills)',
+  'A single cell — can move along any dimension',
+  'Fills 1 dim completely; moves only in the others (e.g. horizontal line → up/down)',
+  'Fills 2 dims (a full plane through the grid); slides along remaining dims',
+  'Fills 3 dims (the whole box if those are X/Y/Z); needs a 4th+ dim to move',
+  'Fills 4 dims (a hypersolid); moves in any dim it does not fill',
 ];
 const COLLISION_TYPES = Object.values(CollisionType);
 const COLLISION_LABELS = {
@@ -120,6 +121,7 @@ export class UIControls {
       opt.textContent = label;
       rankSelect.appendChild(opt);
     });
+    this._rankSelect = rankSelect;
     rankSelect.addEventListener('change', () => {
       this.paintRank = parseInt(rankSelect.value, 10);
       document.getElementById('rank-hint').textContent = RANK_HINTS[this.paintRank];
@@ -128,10 +130,11 @@ export class UIControls {
     });
     rankGroup.appendChild(rankSelect);
     panel.appendChild(rankGroup);
+    this._refreshRankAvailability();
 
     const spanGroup = document.createElement('div');
     spanGroup.className = 'control-group';
-    spanGroup.innerHTML = `<label>Span dims</label><span class="control-hint">Axes the shape extends along</span>`;
+    spanGroup.innerHTML = `<label>Span dims</label><span class="control-hint">Dims filled completely (full grid length)</span>`;
     this.spanDimContainer = document.createElement('div');
     this.spanDimContainer.id = 'span-dims';
     this.spanDimContainer.className = 'checkbox-group';
@@ -140,7 +143,7 @@ export class UIControls {
 
     const moveGroup = document.createElement('div');
     moveGroup.className = 'control-group';
-    moveGroup.innerHTML = `<label>Move along</label><span class="control-hint">Must be outside the span</span>`;
+    moveGroup.innerHTML = `<label>Move along</label><span class="control-hint">Free dims only — not filled by the shape</span>`;
     this.moveDimSelect = document.createElement('select');
     this.moveDimSelect.id = 'move-dim';
     this.moveDimSelect.setAttribute('aria-label', 'Movement dimension');
@@ -186,6 +189,26 @@ export class UIControls {
     });
     colorGroup.appendChild(colorInput);
     panel.appendChild(colorGroup);
+  }
+
+  /** Max rank is N−1 so at least one free dim remains to move along. */
+  _refreshRankAvailability() {
+    const N = this.app.worldConfig.N;
+    const maxRank = Math.max(0, Math.min(RANK_LABELS.length - 1, N - 1));
+    const sel = this._rankSelect || document.getElementById('rank-select');
+    if (!sel) return;
+    for (const opt of sel.options) {
+      const r = parseInt(opt.value, 10);
+      opt.disabled = r > maxRank;
+      opt.hidden = r > maxRank;
+    }
+    if (this.paintRank > maxRank) {
+      this.paintRank = maxRank;
+      sel.value = String(maxRank);
+      const hint = document.getElementById('rank-hint');
+      if (hint) hint.textContent = RANK_HINTS[this.paintRank];
+      this._autoPickSpanDims();
+    }
   }
 
   /** Pick the first `rank` dims as span so placement always works. */
@@ -268,6 +291,12 @@ export class UIControls {
     } else if (available.length) {
       this.moveDimSelect.value = String(available[0]);
       this.paintMoveDim = available[0];
+    } else {
+      this.paintMoveDim = -1;
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No free dim — raise Dims';
+      this.moveDimSelect.appendChild(opt);
     }
   }
 
@@ -339,10 +368,11 @@ export class UIControls {
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
-    for (let i = 0; i < 4; i++) {
+    const n = RANK_LABELS.length;
+    for (let i = 0; i < n; i++) {
       const row = document.createElement('tr');
       row.innerHTML = `<th scope="row">${RANK_LABELS[i]}</th>`;
-      for (let j = 0; j < 4; j++) {
+      for (let j = 0; j < n; j++) {
         const td = document.createElement('td');
         const sel = document.createElement('select');
         sel.className = 'rule-select';
@@ -413,6 +443,7 @@ export class UIControls {
       this.app.setDimensions(val);
       dimVal.textContent = val;
       dimSlider.setAttribute('aria-valuenow', val);
+      this._refreshRankAvailability();
       this.rebuildSpanDimCheckboxes();
       this.rebuildDimMapping();
       this.setupSliceSliders();
@@ -506,6 +537,7 @@ export class UIControls {
       dimVal.textContent = this.app.worldConfig.N;
     }
 
+    this._refreshRankAvailability();
     this.rebuildSpanDimCheckboxes();
     this.rebuildDimMapping();
     this.setupSliceSliders();

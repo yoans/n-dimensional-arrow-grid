@@ -225,7 +225,7 @@ kbd {
 .right-panel {
   border-right: none;
   border-left: 1px solid rgba(76, 110, 245, 0.12);
-  width: 380px;
+  width: 420px;
   min-width: 300px;
   overflow-x: auto;
 }
